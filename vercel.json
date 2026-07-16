@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/tasks/stats", "destination": "/api/tasks?action=stats" },
+    { "source": "/api/tasks/:id", "destination": "/api/tasks?id=:id" },
+    { "source": "/api/tasks", "destination": "/api/tasks" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
