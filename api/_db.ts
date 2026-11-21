@@ -54,13 +54,15 @@ async function kvGet<T>(key: string): Promise<T | null> {
   if (!url || !token) return null;
 
   try {
-    const response = await fetch(`${url}/get/${key}`, {
+    const response = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return null;
     const data = await response.json() as { result: string | null };
-    return data.result ? JSON.parse(data.result) as T : null;
-  } catch {
+    if (!data.result) return null;
+    return JSON.parse(data.result) as T;
+  } catch (error) {
+    console.error('KV get failed:', error);
     return null;
   }
 }
@@ -71,13 +73,17 @@ async function kvSet<T>(key: string, value: T): Promise<boolean> {
   if (!url || !token) return false;
 
   try {
-    const response = await fetch(`${url}/set/${key}`, {
+    const encodedValue = encodeURIComponent(JSON.stringify(value));
+    const response = await fetch(`${url}/set/${encodeURIComponent(key)}/${encodedValue}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(JSON.stringify(value)),
+      headers: { Authorization: `Bearer ${token}` },
     });
+    if (!response.ok) {
+      console.error('KV set failed:', await response.text());
+    }
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.error('KV set failed:', error);
     return false;
   }
 }
@@ -111,6 +117,7 @@ export async function readDB(): Promise<DBData> {
 export async function writeDB(data: DBData): Promise<void> {
   if (await kvSet('tasks_db', data)) return;
   try {
+    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
     console.error('Error writing DB:', error);
