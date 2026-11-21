@@ -18,9 +18,9 @@ export default async function handler(req: Request, res: Response) {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (token) {
-      const db = readDB();
+      const db = await readDB();
       db.sessions = db.sessions.filter((s) => s.token !== token);
-      writeDB(db);
+      await writeDB(db);
     }
 
     res.status(200).json({ message: 'Successfully logged out' });

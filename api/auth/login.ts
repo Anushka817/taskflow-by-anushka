@@ -56,7 +56,7 @@ export default async function handler(req: Request, res: Response) {
     };
 
     db.sessions.push(newSession);
-    writeDB(db);
+    await writeDB(db);
 
     res.status(200).json({
       token,

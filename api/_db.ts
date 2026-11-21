@@ -48,51 +48,68 @@ const DB_FILE_DEV = path.join(process.cwd(), 'tasks_db.json');
 // On Vercel, process.cwd() is read-only, so we write to /tmp/tasks_db.json
 const DB_FILE = process.env.VERCEL || process.env.NODE_ENV === 'production' ? DB_FILE_PROD : DB_FILE_DEV;
 
-export function readDB(): DBData {
+async function kvGet<T>(key: string): Promise<T | null> {
+  const url = process.env.KV_REST_API_URL || process.env.REDIS_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+
+  try {
+    const response = await fetch(`${url}/get/${key}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { result: string | null };
+    return data.result ? JSON.parse(data.result) as T : null;
+  } catch {
+    return null;
+  }
+}
+
+async function kvSet<T>(key: string, value: T): Promise<boolean> {
+  const url = process.env.KV_REST_API_URL || process.env.REDIS_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return false;
+
+  try {
+    const response = await fetch(`${url}/set/${key}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(JSON.stringify(value)),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function readDB(): Promise<DBData> {
+  const kvData = await kvGet<DBData>('tasks_db');
+  if (kvData) {
+    return {
+      users: Array.isArray(kvData.users) ? kvData.users : [],
+      tasks: Array.isArray(kvData.tasks) ? kvData.tasks : [],
+      sessions: Array.isArray(kvData.sessions) ? kvData.sessions : [],
+    };
+  }
+
   try {
     if (!fs.existsSync(DB_FILE)) {
-      const srcPath = path.join(process.cwd(), 'tasks_db.json');
-      if (fs.existsSync(srcPath)) {
-        const content = fs.readFileSync(srcPath, 'utf-8');
-        fs.writeFileSync(DB_FILE, content, 'utf-8');
-      } else {
-        const initialData: DBData = { users: [], tasks: [], sessions: [] };
-        fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-      }
+      const initialData: DBData = { users: [], tasks: [], sessions: [] };
+      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
+      return initialData;
     }
-    const content = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(content) as DBData;
-    
-    if (parsed.tasks && Array.isArray(parsed.tasks)) {
-      parsed.tasks = parsed.tasks.map((task: any) => {
-        let status = task.status;
-        if (status !== 'completed' && status !== 'in_progress' && status !== 'pending') {
-          status = 'pending';
-        }
-        return {
-          id: task.id,
-          title: task.title,
-          description: task.description || '',
-          dueDate: task.dueDate || '',
-          priority: task.priority || 'medium',
-          status: status,
-          category: task.category || 'work',
-          attachment: task.attachment,
-          userId: task.userId,
-          createdAt: task.createdAt || new Date().toISOString(),
-        };
-      });
-    } else {
-      parsed.tasks = [];
-    }
+    const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')) as DBData;
+    parsed.users = Array.isArray(parsed.users) ? parsed.users : [];
+    parsed.tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    parsed.sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
     return parsed;
-  } catch (error) {
-    console.error('Error reading DB, resetting database:', error);
+  } catch {
     return { users: [], tasks: [], sessions: [] };
   }
 }
 
-export function writeDB(data: DBData): void {
+export async function writeDB(data: DBData): Promise<void> {
+  if (await kvSet('tasks_db', data)) return;
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
@@ -112,7 +129,7 @@ export function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-export function authenticateUser(req: any, res: any): User | null {
+export async function authenticateUser(req: any, res: any): Promise<User | null> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -121,7 +138,7 @@ export function authenticateUser(req: any, res: any): User | null {
     return null;
   }
 
-  const db = readDB();
+  const db = await readDB();
   const session = db.sessions.find((s) => s.token === token);
 
   if (!session) {
@@ -131,7 +148,7 @@ export function authenticateUser(req: any, res: any): User | null {
 
   if (new Date(session.expiresAt) < new Date()) {
     db.sessions = db.sessions.filter((s) => s.token !== token);
-    writeDB(db);
+    await writeDB(db);
     res.status(401).json({ error: 'Session has expired' });
     return null;
   }
@@ -142,9 +159,5 @@ export function authenticateUser(req: any, res: any): User | null {
     return null;
   }
 
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-  };
+  return { id: user.id, username: user.username, email: user.email };
 }

@@ -72,7 +72,7 @@ export default async function handler(req: Request, res: Response) {
 
     db.users.push(newUser);
     db.sessions.push(newSession);
-    writeDB(db);
+    await writeDB(db);
 
     res.status(201).json({
       token,

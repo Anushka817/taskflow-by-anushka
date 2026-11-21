@@ -9,9 +9,8 @@ import { readDB, writeDB, authenticateUser } from './_db';
 
 export default async function handler(req: Request, res: Response) {
   // Validate authentication first
-  const user = authenticateUser(req, res);
+  const user = await authenticateUser(req, res);
   if (!user) {
-    // authenticateUser already sent 401 response
     return;
   }
 
@@ -21,7 +20,7 @@ export default async function handler(req: Request, res: Response) {
   try {
     // 1. STATS ACTION: GET /api/tasks/stats
     if (req.method === 'GET' && action === 'stats') {
-      const db = readDB();
+      const db = await readDB();
       const userTasks = db.tasks.filter((t) => t.userId === userId);
 
       const totalTasks = userTasks.length;
@@ -69,7 +68,7 @@ export default async function handler(req: Request, res: Response) {
 
       if (req.method === 'PUT') {
         const { title, description, dueDate, priority, status, category, attachment } = req.body;
-        const db = readDB();
+        const db = await readDB();
         const taskIndex = db.tasks.findIndex((t) => t.id === taskId && t.userId === userId);
 
         if (taskIndex === -1) {
@@ -90,14 +89,14 @@ export default async function handler(req: Request, res: Response) {
         };
 
         db.tasks[taskIndex] = updatedTask;
-        writeDB(db);
+        await writeDB(db);
 
         res.status(200).json(updatedTask);
         return;
       }
 
       if (req.method === 'DELETE') {
-        const db = readDB();
+        const db = await readDB();
         const taskIndex = db.tasks.findIndex((t) => t.id === taskId && t.userId === userId);
 
         if (taskIndex === -1) {
@@ -106,7 +105,7 @@ export default async function handler(req: Request, res: Response) {
         }
 
         db.tasks.splice(taskIndex, 1);
-        writeDB(db);
+        await writeDB(db);
 
         res.status(200).json({ success: true, message: 'Task deleted successfully' });
         return;
@@ -119,7 +118,7 @@ export default async function handler(req: Request, res: Response) {
 
     // 3. GENERAL TASK ACTIONS
     if (req.method === 'GET') {
-      const db = readDB();
+      const db = await readDB();
       let userTasks = db.tasks.filter((t) => t.userId === userId);
 
       const { status, priority, q, sortBy, sortOrder } = req.query;
@@ -171,7 +170,7 @@ export default async function handler(req: Request, res: Response) {
         return;
       }
 
-      const db = readDB();
+      const db = await readDB();
 
       const newTask = {
         id: crypto.randomUUID(),
@@ -187,7 +186,7 @@ export default async function handler(req: Request, res: Response) {
       };
 
       db.tasks.push(newTask);
-      writeDB(db);
+      await writeDB(db);
 
       res.status(201).json(newTask);
       return;

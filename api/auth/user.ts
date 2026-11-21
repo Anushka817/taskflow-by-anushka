@@ -14,7 +14,7 @@ export default async function handler(req: Request, res: Response) {
   }
 
   try {
-    const user = authenticateUser(req, res);
+    const user = await authenticateUser(req, res);
     if (!user) {
       // authenticateUser already responded with status 401
       return;
