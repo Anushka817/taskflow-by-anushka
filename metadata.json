@@ -1,0 +1,6 @@
+{
+  "name": "Premium Task Management",
+  "description": "A premium task management dashboard featuring status tracking, statistical analytics, and clean dark modern aesthetics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
