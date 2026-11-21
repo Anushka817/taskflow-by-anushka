@@ -61,8 +61,13 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ onLoginSuccess, onShowTo
     setLoading(true);
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
-        const data = await api.login(normalizedEmail, password);
+        const firebaseResult = await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
+        const data = await api.login(
+          normalizedEmail,
+          password,
+          firebaseResult.user.uid,
+          firebaseResult.user.displayName || undefined
+        );
         onShowToast('Welcome back! Loading your workspace...', 'success');
         onLoginSuccess(data.token, data.user);
       } else {
@@ -73,7 +78,15 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ onLoginSuccess, onShowTo
         onLoginSuccess(data.token, data.user);
       }
     } catch (err: any) {
-      onShowToast(err.message || 'Authentication failed', 'error');
+      const code = err?.code || '';
+      const message = code === 'auth/invalid-credential'
+        ? 'Incorrect email or password'
+        : code === 'auth/user-not-found'
+          ? 'No account found with this email'
+          : code === 'auth/email-already-in-use'
+            ? 'This email is already registered'
+            : err.message || 'Authentication failed';
+      onShowToast(message, 'error');
     } finally {
       setLoading(false);
     }

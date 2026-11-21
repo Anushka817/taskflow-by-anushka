@@ -9,6 +9,7 @@ import {
   writeDB,
   hashPassword,
   generateToken,
+  generateSalt,
 } from '../_db.js';
 
 export default async function handler(req: Request, res: Response) {
@@ -20,6 +21,8 @@ export default async function handler(req: Request, res: Response) {
 
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = typeof req.body.password === 'string' ? req.body.password : '';
+  const firebaseUid = typeof req.body.firebaseUid === 'string' ? req.body.firebaseUid.trim() : '';
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : email.split('@')[0];
 
   if (!email || !password) {
     res.status(400).json({ error: 'Email and password are required' });
@@ -31,17 +34,32 @@ export default async function handler(req: Request, res: Response) {
     if (!db.users) db.users = [];
     if (!db.sessions) db.sessions = [];
 
-    const user = db.users.find((u) => u.email.toLowerCase() === email);
+    let user = db.users.find((u) => u.email.toLowerCase() === email);
 
     if (!user) {
-      res.status(400).json({ error: 'Invalid email or password' });
-      return;
+      if (!firebaseUid) {
+        res.status(400).json({ error: 'Invalid email or password' });
+        return;
+      }
+
+      const salt = generateSalt();
+      user = {
+        id: firebaseUid,
+        username,
+        email,
+        passwordHash: hashPassword(password, salt),
+        salt,
+        createdAt: new Date().toISOString(),
+      };
+      db.users.push(user);
     }
 
-    const computedHash = hashPassword(password, user.salt);
-    if (computedHash !== user.passwordHash) {
-      res.status(400).json({ error: 'Invalid email or password' });
-      return;
+    if (!firebaseUid) {
+      const computedHash = hashPassword(password, user.salt);
+      if (computedHash !== user.passwordHash) {
+        res.status(400).json({ error: 'Invalid email or password' });
+        return;
+      }
     }
 
     const token = generateToken();

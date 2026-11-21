@@ -53,10 +53,10 @@ export const api = {
       body: JSON.stringify({ username, email, password }),
     }),
 
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, firebaseUid?: string, username?: string) =>
     request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, firebaseUid, username }),
     }),
 
   logout: () =>
