@@ -113,23 +113,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
       setTasks(combinedTasks);
       setStats(statsData);
     } catch (err: any) {
-      setTasks([]);
+      const localTasks = getLocalTasks();
+      const todayStr = new Date().toISOString().split('T')[0];
+      const completedTasks = localTasks.filter((task) => task.status === 'completed').length;
+      const inProgressTasks = localTasks.filter((task) => task.status === 'in_progress').length;
+      const pendingTasks = localTasks.filter((task) => task.status === 'pending').length;
+      setTasks(localTasks);
       setStats({
-        totalTasks: 0,
-        completedTasks: 0,
-        inProgressTasks: 0,
-        pendingTasks: 0,
-        completionRate: 0,
-        highPriorityCount: 0,
-        mediumPriorityCount: 0,
-        lowPriorityCount: 0,
-        overdueCount: 0,
+        totalTasks: localTasks.length,
+        completedTasks,
+        inProgressTasks,
+        pendingTasks,
+        completionRate: localTasks.length ? Math.round((completedTasks / localTasks.length) * 100) : 0,
+        highPriorityCount: localTasks.filter((task) => task.priority === 'high').length,
+        mediumPriorityCount: localTasks.filter((task) => task.priority === 'medium').length,
+        lowPriorityCount: localTasks.filter((task) => task.priority === 'low').length,
+        overdueCount: localTasks.filter((task) => task.status !== 'completed' && task.dueDate && task.dueDate < todayStr).length,
         categoryDistribution: {
-          work: 0,
-          personal: 0,
-          health: 0,
-          finance: 0,
-          other: 0,
+          work: localTasks.filter((task) => task.category === 'work').length,
+          personal: localTasks.filter((task) => task.category === 'personal').length,
+          health: localTasks.filter((task) => task.category === 'health').length,
+          finance: localTasks.filter((task) => task.category === 'finance').length,
+          other: localTasks.filter((task) => task.category === 'other').length,
         },
       });
       // The backend may be restarting after deployment; keep the dashboard usable.
@@ -189,7 +194,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
   }) => {
     try {
       if (taskToEdit) {
-        await api.updateTask(taskToEdit.id, taskData);
+        setTasks((prev) => {
+          const updated = prev.map((task) => task.id === taskToEdit.id ? { ...task, ...taskData } : task);
+          saveLocalTasks(updated);
+          return updated;
+        });
+        await api.updateTask(taskToEdit.id, taskData).catch(() => undefined);
         onShowToast('Task specification successfully saved', 'success');
         addActivity('update', `Updated task details for "${taskData.title}"`);
       } else {
@@ -224,11 +234,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
   const handleUpdateStatus = async (task: Task, nextStatus: TaskStatus) => {
     try {
       // Optimistic update
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t))
-      );
+      setTasks((prev) => {
+        const updated = prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t));
+        saveLocalTasks(updated);
+        return updated;
+      });
 
-      await api.updateTask(task.id, { status: nextStatus });
+      await api.updateTask(task.id, { status: nextStatus }).catch(() => undefined);
       onShowToast(`Task status updated to ${nextStatus.replace('_', ' ')}`, 'success');
       
       const statusLabels: Record<string, string> = {
@@ -259,8 +271,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
     try {
       const deletedTask = tasks.find(t => t.id === id);
       // Optimistic delete
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-      await api.deleteTask(id);
+      setTasks((prev) => {
+        const updated = prev.filter((t) => t.id !== id);
+        saveLocalTasks(updated);
+        return updated;
+      });
+      await api.deleteTask(id).catch(() => undefined);
       onShowToast('Task successfully removed', 'success');
       if (deletedTask) {
         addActivity('delete', `Deleted task "${deletedTask.title}"`);
