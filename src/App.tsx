@@ -80,6 +80,9 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      const { signOut } = await import('firebase/auth');
+      const { firebaseAuth } = await import('./lib/firebase');
+      await signOut(firebaseAuth);
       await api.logout();
     } catch {
       // Ignore network errors on logout

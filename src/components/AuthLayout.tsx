@@ -8,6 +8,8 @@ import { api } from '../lib/api';
 import { User } from '../types';
 import { Mail, Lock, User as UserIcon, Loader2, ArrowRight, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { firebaseAuth } from '../lib/firebase';
 
 interface AuthLayoutProps {
   onLoginSuccess: (token: string, user: User) => void;
@@ -59,10 +61,13 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ onLoginSuccess, onShowTo
     setLoading(true);
     try {
       if (isLogin) {
+        await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
         const data = await api.login(normalizedEmail, password);
         onShowToast('Welcome back! Loading your workspace...', 'success');
         onLoginSuccess(data.token, data.user);
       } else {
+        const firebaseResult = await createUserWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
+        await updateProfile(firebaseResult.user, { displayName: username.trim() });
         const data = await api.register(username.trim(), normalizedEmail, password);
         onShowToast('Account successfully created! Welcome aboard!', 'success');
         onLoginSuccess(data.token, data.user);

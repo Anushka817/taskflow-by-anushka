@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDXyoRsC-wjIPD0pE_4Qp9-NjIoI667kFE',
@@ -17,3 +18,5 @@ export const analyticsPromise: Promise<Analytics | null> =
   typeof window === 'undefined'
     ? Promise.resolve(null)
     : isSupported().then((supported) => (supported ? getAnalytics(firebaseApp) : null));
+
+export const firebaseAuth = getAuth(firebaseApp);
