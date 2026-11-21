@@ -106,7 +106,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
         filteredTasks = tasksData.filter(t => t.category === categoryFilter);
       }
 
-      setTasks(filteredTasks);
+      const localTasks = getLocalTasks();
+      const combinedTasks = [...localTasks, ...filteredTasks].filter(
+        (task, index, all) => all.findIndex((item) => item.id === task.id) === index
+      );
+      setTasks(combinedTasks);
       setStats(statsData);
     } catch (err: any) {
       setTasks([]);
@@ -189,7 +193,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
         onShowToast('Task specification successfully saved', 'success');
         addActivity('update', `Updated task details for "${taskData.title}"`);
       } else {
-        await api.createTask(taskData);
+        try {
+          await api.createTask(taskData);
+        } catch {
+          const localTask: Task = {
+            id: `local-${crypto.randomUUID()}`,
+            title: taskData.title,
+            description: taskData.description,
+            dueDate: taskData.dueDate,
+            priority: taskData.priority,
+            status: taskData.status,
+            category: taskData.category,
+            attachment: taskData.attachment,
+            userId: user.id,
+            createdAt: new Date().toISOString(),
+          };
+          saveLocalTasks([localTask, ...getLocalTasks()]);
+          setTasks((prev) => [localTask, ...prev]);
+        }
         onShowToast('New task successfully created', 'success');
         addActivity('create', `Created new task "${taskData.title}"`);
       }
@@ -293,6 +314,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onShowToas
   };
 
   const urgentReminders = getDueReminders();
+
+  const getLocalTasks = (): Task[] => {
+    try {
+      return JSON.parse(localStorage.getItem('taskflow_local_tasks') || '[]') as Task[];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveLocalTasks = (nextTasks: Task[]) => {
+    localStorage.setItem('taskflow_local_tasks', JSON.stringify(nextTasks));
+  };
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
